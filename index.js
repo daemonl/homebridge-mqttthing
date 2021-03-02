@@ -439,6 +439,16 @@ function makeThing( log, accessoryConfig ) {
                     } );
                 }
 
+                var charac = service.getCharacteristic( Characteristic.ColorTemperature );
+
+                // min/max
+                if( Number.isInteger( config.minColorTemperature ) ) {
+                    charac.props.minValue = config.minColorTemperature;
+                }
+                if( Number.isInteger( config.maxColorTemperature ) ) {
+                    charac.props.maxValue = config.maxColorTemperature;
+                }
+
                 addCharacteristic( service, 'colorTemperature', Characteristic.ColorTemperature, config.minColorTemperature, function() {
                   state.mode = 'white';
                   mqttPublish( config.topics.setColorTemperature, 'colorTemperature', state.colorTemperature );
@@ -448,7 +458,7 @@ function makeThing( log, accessoryConfig ) {
                   mqttSubscribe( config.topics.getColorTemperature, 'colorTemperature', function( topic, message ) {
                       var newState = parseInt( message );
                       state.colorTemperature = newState
-                      service.getCharacteristic( Characteristic.ColorTemperature ).setValue( newState, undefined, c_mySetContext );
+                      service.getCharacteristic( Characteristic.ColorTemperature ).updateValue( newState );
                   })
                 }
 
