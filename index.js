@@ -342,7 +342,7 @@ function makeThing( log, accessoryConfig ) {
                 booleanState( 'online', config.topics.getOnline, true, isRecvValueOnline, isRecvValueOffline );
             }
 
-            function integerCharacteristic( service, property, characteristic, setTopic, getTopic, initialValue, minValue, maxValue ) {
+            function integerCharacteristic( service, property, characteristic, setTopic, getTopic, initialValue, minValue, maxValue, onChange ) {
                 // default state
                 state[ property ] = initialValue || 0;
 
@@ -409,6 +409,112 @@ function makeThing( log, accessoryConfig ) {
                 }
             }
 
+            function characteristics_HSWLight( service ) {
+                let lastpubmsg = '';
+
+                function publishNow() {
+                    var bri = state.bri;
+                    if( !config.topics.setOn && !state.on ) {
+                        bri = 0;
+                    }
+                    var msg = state.hue + ',' + state.sat;
+                    if( msg != lastpubmsg ) {
+                        mqttPublish( config.topics.setHS, 'HS', msg );
+                        lastpubmsg = msg;
+                    }
+                }
+
+                function publish() {
+                    throttledCall( publishNow, 'hsw_publish', 20 );
+                }
+                
+                if( config.topics.setOn ) {
+                    characteristic_On( service );
+                } else {
+                    addCharacteristic( service, 'on', Characteristic.On, 0, function() {
+                        if( state.on && state.bri == 0 ) {
+                            state.bri = 100;
+                        }
+                        publish();
+                    } );
+                }
+
+                addCharacteristic( service, 'colorTemperature', Characteristic.ColorTemperature, config.minColorTemperature, function() {
+                  state.mode = 'white';
+                  mqttPublish( config.topics.setColorTemperature, 'colorTemperature', state.colorTemperature );
+                });
+
+                if( config.topics.getColorTemperature ) {
+                  mqttSubscribe( config.topics.getColorTemperature, 'colorTemperature', function( topic, message ) {
+                      var newState = parseInt( message );
+                      state.colorTemperature = newState
+                      service.getCharacteristic( Characteristic.ColorTemperature ).setValue( newState, undefined, c_mySetContext );
+                  })
+                }
+
+                addCharacteristic( service, 'hue', Characteristic.Hue, 0, function() {
+                  state.mode = 'color';
+                  publish();
+                } );
+
+                addCharacteristic( service, 'sat', Characteristic.Saturation, 0, function() {
+                  state.mode = 'color';
+                  publish();
+                } );
+  
+                if( config.topics.setWhiteBrightness && config.topics.setColorBrightness ) {
+                  addCharacteristic( service, 'bri', Characteristic.Brightness, 100, function() {
+                      var topic = config.topics.setWhiteBrightness
+                      if( state.mode === 'color' ) {
+                        topic = config.topics.setColorBrightness
+                      }
+                      mqttPublish( topic, 'brightness', state.bri );
+                  } );
+                } else {
+                  addCharacteristic( service, 'bri', Characteristic.Brightness, 100, function() {
+                      if( state.bri > 0 && !state.on ) {
+                          state.on = true;
+                      }
+                      publish();
+                  } );
+                }
+
+                if( config.topics.getHS ) {
+                    mqttSubscribe( config.topics.getHS, 'HS', function( topic, message ) {
+                        var comps = ( '' + message ).split( ',' );
+                        if( comps.length == 2 ) {
+                            var hue = parseInt( comps[ 0 ] );
+                            var sat = parseInt( comps[ 1 ] );
+
+                            if( hue != state.hue ) {
+                                state.hue = hue;
+                                //log( 'hue ' + hue );
+                                service.getCharacteristic( Characteristic.Hue ).setValue( hue, undefined, c_mySetContext );
+                            }
+
+                            if( sat != state.sat ) {
+                                state.sat = sat;
+                                //log( 'sat ' + sat );
+                                service.getCharacteristic( Characteristic.Saturation ).setValue( sat, undefined, c_mySetContext );
+                            }
+                        }
+                    } );
+                }
+
+              if( config.topics.getWhiteBrightness ) {
+                  mqttSubscribe( config.topics.getWhiteBrightness, 'WhiteBrightness', function( topic, message ) {
+                    state.bri = parseInt(message);
+                    service.getCharacteristic( Characteristic.Brightness ).setValue( state.bri, undefined, c_mySetContext );
+                  })
+              }
+              if( config.topics.getColorBrightness ) {
+                  mqttSubscribe( config.topics.getColorBrightness, 'ColorBrightness', function( topic, message ) {
+                    state.bri = parseInt(message);
+                    service.getCharacteristic( Characteristic.Brightness ).setValue( state.bri, undefined, c_mySetContext );
+                  })
+              }
+            }
+
             function characteristics_HSVLight( service ) {
 
                 let lastpubmsg = '';
@@ -439,14 +545,31 @@ function makeThing( log, accessoryConfig ) {
                         publish();
                     } );
                 }
-                addCharacteristic( service, 'hue', Characteristic.Hue, 0, publish );
-                addCharacteristic( service, 'sat', Characteristic.Saturation, 0, publish );
-                addCharacteristic( service, 'bri', Characteristic.Brightness, 100, function() {
-                    if( state.bri > 0 && !state.on ) {
-                        state.on = true;
-                    }
-                    publish();
+                addCharacteristic( service, 'hue', Characteristic.Hue, 0, function() {
+                  state.mode = 'color';
+                  publish();
                 } );
+                addCharacteristic( service, 'sat', Characteristic.Saturation, 0, function() {
+                  state.mode = 'color';
+                  publish();
+                } );
+
+
+
+                if( config.topics.setBrightness ) {
+                  addCharacteristic( service, 'bri', Characteristic.Brightness, 100, function() {
+                      throttledCall( function() {
+                        mqttPublish( config.topics.setBrightness, 'Brightness', state.bri );
+                      }, 'brightness', 20 );
+                  } );
+                } else {
+                  addCharacteristic( service, 'bri', Characteristic.Brightness, 100, function() {
+                      if( state.bri > 0 && !state.on ) {
+                          state.on = true;
+                      }
+                      publish();
+                  } );
+                }
 
                 if( config.topics.getHSV ) {
                     mqttSubscribe( config.topics.getHSV, 'HSV', function( topic, message ) {
@@ -1173,7 +1296,6 @@ function makeThing( log, accessoryConfig ) {
 
             // Characteristic.Brightness
             function characteristic_Brightness( service ) {
-
                 if( config.topics.setOn ) {
                     // separate On topic, so implement standard brightness characteristic
                     integerCharacteristic( service, 'brightness', Characteristic.Brightness, config.topics.setBrightness, config.topics.getBrightness );
@@ -2461,6 +2583,8 @@ function makeThing( log, accessoryConfig ) {
                 service = new Service.Lightbulb( name, subtype );
                 if( config.topics.setHSV ) {
                     characteristics_HSVLight( service );
+                } else if( config.topics.setHS && config.topics.setColorTemperature ) {
+                    characteristics_HSWLight( service );
                 } else if( config.topics.setRGB || config.topics.setRGBW || config.topics.setRGBWW ) {
                     characteristics_RGBLight( service );
                 } else if( config.topics.setWhite ) {

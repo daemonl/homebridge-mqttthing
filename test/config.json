@@ -20,7 +20,7 @@
         {
             "type": "lightbulb-Colour",
             "name": "Test lightbulb",
-            "url": "mqtt://192.168.10.35:1883",
+            "url": "mqtt://127.0.0.1:1883",
             "mqttPubOptions": {
                 "retain": true
             },
@@ -68,11 +68,15 @@
         {
             "type": "lightbulb-HSV",
             "name": "Test HSV Light",
-            "url": "mqtt://192.168.10.35:1883",
+            "url": "mqtt://192.168.10.1:1883",
+            "username": "DVES_USER",
+            "password": "test",
             "logMqtt": true,
             "topics": {
                 "setHSV": "test/hsvlight/setHSV",
-                "getHSV": "test/hsvlight/getHSV"
+                "getHSV": "test/hsvlight/getHSV",
+                "getColorTemperature": "test/lightbulb/getTemperature",
+                "setColorTemperature": "test/lightbulb/setTemperature"
             },
             "startPub": [
                 {
