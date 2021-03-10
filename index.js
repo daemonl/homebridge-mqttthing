@@ -427,7 +427,7 @@ function makeThing( log, accessoryConfig ) {
                 function publish() {
                     throttledCall( publishNow, 'hsw_publish', 20 );
                 }
-                
+
                 if( config.topics.setOn ) {
                     characteristic_On( service );
                 } else {
@@ -456,6 +456,7 @@ function makeThing( log, accessoryConfig ) {
 
                 if( config.topics.getColorTemperature ) {
                   mqttSubscribe( config.topics.getColorTemperature, 'colorTemperature', function( topic, message ) {
+                      state.mode = 'white'
                       var newState = parseInt( message );
                       state.colorTemperature = newState
                       service.getCharacteristic( Characteristic.ColorTemperature ).updateValue( newState );
@@ -474,7 +475,6 @@ function makeThing( log, accessoryConfig ) {
   
                 if( config.topics.setWhiteBrightness && config.topics.setColorBrightness ) {
                   addCharacteristic( service, 'bri', Characteristic.Brightness, 100, function() {
-                      var topic
                       if( state.mode === 'color' ) {
                         state.colorBrightness = state.bri
                         mqttPublish( config.topics.setColorBrightness, 'brightness', state.bri );
