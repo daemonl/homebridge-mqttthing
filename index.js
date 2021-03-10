@@ -418,10 +418,10 @@ function makeThing( log, accessoryConfig ) {
                         bri = 0;
                     }
                     var msg = state.hue + ',' + state.sat;
-                    if( msg != lastpubmsg ) {
+                    //if( msg != lastpubmsg ) {
                         mqttPublish( config.topics.setHS, 'HS', msg );
                         lastpubmsg = msg;
-                    }
+                    //}
                 }
 
                 function publish() {
@@ -474,11 +474,14 @@ function makeThing( log, accessoryConfig ) {
   
                 if( config.topics.setWhiteBrightness && config.topics.setColorBrightness ) {
                   addCharacteristic( service, 'bri', Characteristic.Brightness, 100, function() {
-                      var topic = config.topics.setWhiteBrightness
+                      var topic
                       if( state.mode === 'color' ) {
-                        topic = config.topics.setColorBrightness
+                        state.colorBrightness = state.bri
+                        mqttPublish( config.topics.setColorBrightness, 'brightness', state.bri );
+                      } else {
+                        state.whiteBrightness = state.bri
+                        mqttPublish( config.topics.setWhiteBrightness, 'brightness', state.bri );
                       }
-                      mqttPublish( topic, 'brightness', state.bri );
                   } );
                 } else {
                   addCharacteristic( service, 'bri', Characteristic.Brightness, 100, function() {
@@ -512,15 +515,21 @@ function makeThing( log, accessoryConfig ) {
                 }
 
               if( config.topics.getWhiteBrightness ) {
-                  mqttSubscribe( config.topics.getWhiteBrightness, 'WhiteBrightness', function( topic, message ) {
-                    state.bri = parseInt(message);
-                    service.getCharacteristic( Characteristic.Brightness ).setValue( state.bri, undefined, c_mySetContext );
+                  mqttSubscribe( config.topics.getWhiteBrightness, 'whiteBrightness', function( topic, message ) {
+                    state.whiteBrightness = parseInt(message);
+                    if (state.mode === 'white') {
+                      state.bri = state.whiteBrightness
+                      service.getCharacteristic( Characteristic.Brightness ).setValue( state.whiteBrightness, undefined, c_mySetContext );
+                    }
                   })
               }
               if( config.topics.getColorBrightness ) {
-                  mqttSubscribe( config.topics.getColorBrightness, 'ColorBrightness', function( topic, message ) {
-                    state.bri = parseInt(message);
-                    service.getCharacteristic( Characteristic.Brightness ).setValue( state.bri, undefined, c_mySetContext );
+                  mqttSubscribe( config.topics.getColorBrightness, 'colorBrightness', function( topic, message ) {
+                    state.colorBrightness = parseInt(message);
+                    if (state.mode === 'color') {
+                      state.bri = state.colorBrightness
+                      service.getCharacteristic( Characteristic.Brightness ).setValue( state.colorBrightness, undefined, c_mySetContext );
+                    }
                   })
               }
             }
@@ -563,7 +572,6 @@ function makeThing( log, accessoryConfig ) {
                   state.mode = 'color';
                   publish();
                 } );
-
 
 
                 if( config.topics.setBrightness ) {
